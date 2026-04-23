@@ -16,6 +16,8 @@ export default function Home() {
   const [messageText, setMessageText] = useState('');
   const [platform, setPlatform] = useState('whatsapp');
   const [contact, setContact] = useState('');
+  const [pixData, setPixData] = useState<any>(null);
+  const [loadingPix, setLoadingPix] = useState(false);
 
   // Contador de usuários
   useEffect(() => {
@@ -25,7 +27,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Funções
   const showScreen = (screenName: string) => {
     setCurrentScreen(screenName);
   };
@@ -73,6 +74,41 @@ export default function Home() {
       .eq('id', currentRowId);
   };
 
+  const createAsaasPayment = async () => {
+    setLoadingPix(true);
+    try {
+      const trackingCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      
+      const response = await fetch('/api/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          platform: userPlatform,
+          contact: userContact,
+          trackingCode: trackingCode,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setPixData(data);
+        setCurrentTrackingCode(trackingCode);
+      }
+    } catch (error) {
+      console.error('Erro:', error);
+    } finally {
+      setLoadingPix(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentScreen === 'payment' && !pixData) {
+      createAsaasPayment();
+    }
+  }, [currentScreen]);
+
   const handleSubmit = async () => {
     if (!messageText || messageText.length < 10) {
       alert('Mensagem precisa ter pelo menos 10 caracteres');
@@ -107,8 +143,8 @@ export default function Home() {
   };
 
   const copyPix = async () => {
-    const pixCode = '00020126360014br.gov.bcb.pix0114empresa.com52040000530398654069.995802BR5913Zylo Recebedor6008Sao Paulo62070503***6304E2A8';
-    await navigator.clipboard.writeText(pixCode);
+    const code = pixData?.payload || '00020126360014br.gov.bcb.pix0114empresa.com52040000530398654069.995802BR5913Zylo Recebedor6008Sao Paulo62070503***6304E2A8';
+    await navigator.clipboard.writeText(code);
     alert('Código PIX copiado!');
   };
 
@@ -122,6 +158,7 @@ export default function Home() {
     setCurrentScreen('home');
     setCurrentRowId(null);
     setCurrentTrackingCode('');
+    setPixData(null);
   };
 
   const getPlatformName = (plat: string) => {
@@ -137,10 +174,7 @@ export default function Home() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const updateCharCount = () => {
-    const length = messageText.length;
-    return `${length}/500`;
-  };
+  const updateCharCount = () => `${messageText.length}/500`;
 
   const getPlaceholder = () => {
     const placeholders: Record<string, string> = {
@@ -237,10 +271,44 @@ export default function Home() {
           </div>
           <div className="card mt-6">
             <div className="flex-between mb-4"><span style={{ fontWeight: 500 }}>PIX Copia e Cola</span><div className="badge"><span>{formatTime(timeLeft)}</span></div></div>
-            <div className="text-center"><div style={{ background: 'white', padding: 16, borderRadius: 16, display: 'inline-block' }}><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=00020126360014br.gov.bcb.pix0114empresa.com52040000530398654069.995802BR5913Zylo%20Recebedor6008Sao%20Paulo62070503***6304E2A8" alt="QR Code" style={{ width: 160, height: 160 }} /></div></div>
-            <div className="card mt-4" style={{ background: 'var(--bg-primary)', padding: 12 }}><code className="text-xs" style={{ wordBreak: 'break-all' }}>00020126360014br.gov.bcb.pix0114empresa.com52040000530398654069.995802BR5913Zylo Recebedor6008Sao Paulo62070503***6304E2A8</code></div>
-            <button className="btn btn-outline mt-4" onClick={copyPix}>Copiar código</button>
-            <div className="divider mt-4" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}><div style={{ flex: 1, height: 1, background: 'var(--border)' }}></div><span>ou</span><div style={{ flex: 1, height: 1, background: 'var(--border)' }}></div></div>
+
+            {loadingPix ? (
+              <div className="text-center py-8">
+                <div className="loader" style={{ margin: '0 auto' }}></div>
+                <p className="text-sm text-muted mt-4">Gerando QR Code PIX...</p>
+              </div>
+            ) : pixData ? (
+              <>
+                <div className="text-center">
+                  <div style={{ background: 'white', padding: 16, borderRadius: 16, display: 'inline-block' }}>
+                    <img src={pixData.encodedImage || "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=teste"} alt="QR Code PIX" style={{ width: 160, height: 160 }} />
+                  </div>
+                </div>
+                <div className="card mt-4" style={{ background: 'var(--bg-primary)', padding: 12 }}>
+                  <code className="text-xs" style={{ wordBreak: 'break-all' }}>{pixData.payload || 'Código PIX'}</code>
+                </div>
+                <button className="btn btn-outline mt-4" onClick={copyPix}>Copiar código PIX</button>
+              </>
+            ) : (
+              <>
+                <div className="text-center">
+                  <div style={{ background: 'white', padding: 16, borderRadius: 16, display: 'inline-block' }}>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=00020126360014br.gov.bcb.pix0114empresa.com52040000530398654069.995802BR5913Zylo%20Recebedor6008Sao%20Paulo62070503***6304E2A8" alt="QR Code PIX" style={{ width: 160, height: 160 }} />
+                  </div>
+                </div>
+                <div className="card mt-4" style={{ background: 'var(--bg-primary)', padding: 12 }}>
+                  <code className="text-xs" style={{ wordBreak: 'break-all' }}>00020126360014br.gov.bcb.pix0114empresa.com52040000530398654069.995802BR5913Zylo Recebedor6008Sao Paulo62070503***6304E2A8</code>
+                </div>
+                <button className="btn btn-outline mt-4" onClick={copyPix}>Copiar código PIX</button>
+              </>
+            )}
+
+            <div className="divider mt-4" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }}></div>
+              <span>ou</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }}></div>
+            </div>
+
             <button className="btn btn-primary mt-4" onClick={simulatePayment}>Confirmar pagamento</button>
           </div>
         </main>
@@ -258,7 +326,7 @@ export default function Home() {
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>Mensagem enviada!</h2>
           <p className="text-muted text-sm">Seu desabafo foi registrado com sucesso.</p>
-          <div className="card mt-6"><div className="text-center"><div className="text-xs text-muted">Código de rastreio</div><div style={{ fontFamily: 'monospace', fontSize: 16, letterSpacing: 1 }}>{currentTrackingCode}</div></div></div>
+          <div className="card mt-6"><div className="text-center"><div className="text-xs text-muted">Código de rastreio</div><div style={{ fontFamily: 'monospace', fontSize: 16, letterSpacing: 1 }}>{currentTrackingCode || '----'}</div></div></div>
           <button className="btn btn-secondary mt-6" onClick={resetToHome}>Voltar ao início</button>
         </main>
       </div>
